@@ -1,14 +1,15 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -I. -MMD -MP -O2
+CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -I. -MMD -MP
 
 # Base name of the program
 PROG_NAME = run
 
-SRCS = main.cc value.cc
+SRCS = main.cc tensor.cc ops.cc
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 
-# --- Handle Windows and Linux ---
+# --- Platform Detection ---
+# 'OS' is an environment variable that is set to 'Windows_NT' on Windows systems.
 ifeq ($(OS),Windows_NT)
 	# Windows Settings
 	TARGET = $(PROG_NAME).exe

@@ -1,95 +1,63 @@
 #include <iostream>
 #include <vector>
-#include "value.h"
+#include <iomanip>
+#include "tensor.h"
 
-using autograd::Value;
-
-// The Sanity Check from the previous chapter
-void DocsExample() {
-  std::cout << "--- Sanity Check ---\n";
-  // Example: f(a, b) = (a + b) * b
-  // Let a = 2.0, b = 3.0
-  // f = (2 + 3) * 3 = 15
-  
-  // Analytical Derivatives:
-  // df/da = b = 3
-  // df/db = (a + b) * 1 + b * 1 = (2 + 3) + 3 = 8
-  
-  Value a(2.0f, true);
-  Value b(3.0f, true);
-  
-  Value c = a + b;  // 5.0
-  Value f = c * b;  // 15.0
-  
-  f.backward();
-  
-  std::cout << "Result: " << f.data() << " (Expected 15.0)" << std::endl;
-  std::cout << "Grad a: " << a.grad() << " (Expected 3.0)" << std::endl;
-  std::cout << "Grad b: " << b.grad() << " (Expected 8.0)" << std::endl;
-  std::cout << "--------------------\n\n";
-}
-
-// The Training Loop
-void TrainLinearModel() {
-  std::cout << "--- Training Linear Model (Target: y = 3x + 2) ---\n";
-
-  // 1. Dataset (y = 3x + 2)
-  // x: 0, 1, 2, 3
-  // y: 2, 5, 8, 11
-  std::vector<float> X = {0.0f, 1.0f, 2.0f, 3.0f};
-  std::vector<float> Y = {2.0f, 5.0f, 8.0f, 11.0f};
-
-  // 2. Initialize Parameters
-  // We want the model to learn w=3, b=2. Start them at random/zero.
-  Value w(0.5f, true); // Random guess
-  Value b(0.0f, true); // Random guess
-
-  float learning_rate = 0.01f;
-
-  // 3. Training Loop
-  for (int epoch = 0; epoch < 200; ++epoch) {
-    Value total_loss(0.0f);
-
-    // Accumulate loss over the batch
-    for (size_t i = 0; i < X.size(); ++i) {
-      Value x_val(X[i]);
-      Value y_target(Y[i]);
-
-      // Forward Pass: y = wx + b
-      Value prediction = (x_val * w) + b;
-
-      // Loss: (prediction - target)^2
-      Value diff = prediction - y_target;
-      Value loss = diff * diff;
-
-      total_loss = total_loss + loss;
-    }
-
-    // Zero Gradients before backward!
-    // (In C++, we must manually clear them or they accumulate)
-    w.zero_grad();
-    b.zero_grad();
-
-    // Backward Pass
-    total_loss.backward();
-
-    // Optimizer Step (Gradient Descent)
-    // w = w - learning_rate * grad
-    // We modify data directly to avoid adding this math to the graph
-    w.mutable_data() -= learning_rate * w.grad();
-    b.mutable_data() -= learning_rate * b.grad();
-
-    if (epoch % 10 == 0) {
-      std::cout << "Epoch " << epoch << " | Loss: " << total_loss.data() 
-                << " | w: " << w.data() << " | b: " << b.data() << std::endl;
-    }
-  }
-
-  std::cout << "Final Results -> w: " << w.data() << " (Exp: 3.0), b: " << b.data() << " (Exp: 2.0)\n";
-}
+using autograd::Tensor;
 
 int main() {
-  DocsExample();
-  TrainLinearModel();
+  // --- Data Setup ---
+  // We want to learn y = 3x + 2.
+  // We format input X as [x_val, 1.0] so we can use dot product.
+  std::vector<std::vector<float>> X_data = {
+    {0.0f, 1.0f}, {1.0f, 1.0f}, {2.0f, 1.0f}, {3.0f, 1.0f}, {4.0f, 1.0f}
+  };
+  std::vector<float> Y_data = {2.0f, 5.0f, 8.0f, 11.0f, 14.0f};
+
+  // --- Weights ---
+  // CHANGE 1: Explicit shape {2, 1} (Column vector)
+  // This allows matmul: (1x2) * (2x1) = (1x1)
+  Tensor weights({0.0f, 0.0f}, {2, 1}, true); 
+
+  float learning_rate = 0.001f;
+
+  std::cout << "Target: [3.0, 2.0]\n";
+
+  for (int epoch = 0; epoch < 2000; ++epoch) {
+    float total_loss = 0.0f;
+
+    for (size_t i = 0; i < X_data.size(); ++i) {
+      Tensor x(X_data[i], {1, 2}, false); 
+      Tensor y({Y_data[i]}, {1, 1}, false); 
+
+      // Prediction: 
+      // [x, 1] . [w, b]
+      // [1, 2] . [2, 1] -> [1, 1]
+      Tensor pred = matmul(x, weights); 
+
+      Tensor diff = pred - y;
+      Tensor loss = diff * diff; // MSE loss
+
+      loss.backward();
+      total_loss += loss.data()[0];
+    }
+
+    // --- Optimization ---
+    float N = (float)X_data.size();
+    std::vector<float> new_w_data = weights.data();
+    
+    // Update [w, b]
+    for(size_t i = 0; i < new_w_data.size(); ++i) {
+      new_w_data[i] -= learning_rate * (weights.grad()[i] / N); 
+    }
+    
+    weights = Tensor(new_w_data, {2, 1}, true);
+
+    if (epoch % 100 == 0) {
+      std::cout << "Epoch " << epoch << " Loss: " << (total_loss/N) 
+                << " | Weights: [" << weights.data()[0] << ", " << weights.data()[1] << "]\n";
+    }
+  }
+  
   return 0;
 }
