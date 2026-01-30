@@ -1,6 +1,7 @@
 #include "tensor.h"
-#include <algorithm>
 #include "compute_node.h"
+#include "ops.h"
+#include <algorithm>
 #include <cassert>
 #include <unordered_map>
 #include <stdexcept>
@@ -46,6 +47,7 @@ int Tensor::size() const {
   return std::accumulate(shape_.begin(), shape_.end(), 1, std::multiplies<int>());
 }
 std::vector<float>& Tensor::mutable_grad() { return node_->grad; }
+std::vector<float>& Tensor::mutable_data() { return node_->data; }
 bool Tensor::requires_grad() const { return node_->requires_grad; }
 
 void Tensor::zero_grad() {
@@ -57,8 +59,8 @@ Tensor Tensor::ApplyBinaryOp(const Tensor& a, const Tensor& b,
                              const std::string& op_name,
                              BinaryMathOp forward_op,
                              BinaryGradOp backward_op) {
-  std::vector<float> out_data = forward_op(a.data(), b.data());
-  std::vector<int> out_shape = a.shape(); // Assuming same shape for now
+  std::vector<float> out_data = forward_op(a.data(), b.data(), a.shape(), b.shape());
+  std::vector<int> out_shape = ComputeBroadcastShape(a.shape(), b.shape());
 
   bool req_grad = a.requires_grad() || b.requires_grad();
   auto out_node = std::make_shared<ComputeNode>(out_data, req_grad);
@@ -80,7 +82,7 @@ Tensor Tensor::ApplyBinaryOp(const Tensor& a, const Tensor& b,
     out_node->backward_fn = [weak_out, node_a, node_b, backward_op, out_shape, shape_a, shape_b]() {
       auto out_ptr = weak_out.lock(); 
       if (!out_ptr) return;
-
+      // TODO: Optimize for scalars?
       Tensor t_out(out_shape, out_ptr);
       Tensor t_a(shape_a, node_a);
       Tensor t_b(shape_b, node_b);

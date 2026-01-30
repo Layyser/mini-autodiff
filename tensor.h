@@ -22,6 +22,7 @@ class Tensor {
   const std::vector<int>& shape() const;
   int size() const;
   std::vector<float>& mutable_grad();
+  std::vector<float>& mutable_data();
   bool requires_grad() const;
 
   // -- Engine API --
@@ -40,12 +41,14 @@ class Tensor {
   friend Tensor relu(const Tensor& a);
   friend Tensor sigmoid(const Tensor& a);
   friend Tensor log(const Tensor& a);
+  friend Tensor sum(const Tensor& a);
+  friend Tensor mean(const Tensor& a);
 
  private:
   // We need a private constructor that wraps an existing node
   explicit Tensor(std::vector<int> shape, std::shared_ptr<ComputeNode> node);
 
-  using BinaryMathOp = std::function<std::vector<float>(const std::vector<float>&, const std::vector<float>&)>;
+  using BinaryMathOp = std::function<std::vector<float>(const std::vector<float>&, const std::vector<float>&, const std::vector<int>&, const std::vector<int>&)>;
   using BinaryGradOp = std::function<void(Tensor& out, const Tensor& a, const Tensor& b)>;
   using UnaryMathOp = std::function<std::vector<float>(const std::vector<float>&)>;
   using UnaryGradOp = std::function<void(Tensor& out, const Tensor& a)>;
