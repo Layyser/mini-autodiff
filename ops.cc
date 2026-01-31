@@ -1,5 +1,6 @@
 #include "tensor.h"
 #include "compute_node.h"
+#include "memory_pool.h"
 #include "ops.h"
 #include <cassert>
 #include <cmath> // log
@@ -486,40 +487,49 @@ Tensor operator/(const Tensor& a, const Tensor& b) {
 }
 
 Tensor matmul(const Tensor& a, const Tensor& b) { // Specific case where we need shapes of the Tensors
+  // 1. Compute Data and Shape
   std::vector<float> out_data = MatMulForward(a.data(), b.data(), a.shape(), b.shape());
-  std::vector<int> out_shape = {a.shape()[0], b.shape()[1]};
-  
+  std::vector<int> out_shape = ComputeBroadcastShape(a.shape(), b.shape());
+
   bool req_grad = a.requires_grad() || b.requires_grad();
-  auto out_node = std::make_shared<ComputeNode>(out_data, req_grad);
+
+  // 2. Allocate Node (Using Pool + Move Semantics)
+  auto out_node = std::allocate_shared<ComputeNode>(
+    PoolAllocator<ComputeNode>(),
+    std::move(out_data), 
+    std::move(out_shape), 
+    req_grad
+  );
   out_node->op_name = "matmul";
-  
-  // 4. Connect Graph
+
   if (req_grad) {
+    out_node->parents.reserve(2); // Prevent re-alloc
     out_node->parents.push_back(a.node_);
     out_node->parents.push_back(b.node_);
-    
+
     auto node_a = a.node_;
     auto node_b = b.node_;
     
-    auto shape_a = a.shape_;
-    auto shape_b = b.shape_;
-
-    // Note: Use weak_ptr to break the cycle, suggested by Gemini 3 Pro
     std::weak_ptr<ComputeNode> weak_out = out_node;
-    
-    auto backward_op = MatMulBackward;
-    out_node->backward_fn = [weak_out, node_a, node_b, backward_op, out_shape, shape_a, shape_b]() {
-      auto out_ptr = weak_out.lock(); 
-      if (!out_ptr) return; // Node already destroyed
 
-      Tensor t_out(out_shape, out_ptr);
-      Tensor t_a(shape_a, node_a);
-      Tensor t_b(shape_b, node_b);
+    // OPTIMIZATION: Lambda Capture Size
+    // We NO LONGER capture 'out_shape', 'shape_a', or 'shape_b' by value.
+    // They are accessed via the node pointers.
+    auto backward_op = MatMulBackward;
+    out_node->backward_fn = [weak_out, node_a, node_b, backward_op]() {
+      auto out_ptr = weak_out.lock(); 
+      if (!out_ptr) return;
+
+      // Reconstruct Tensors wrappers from raw nodes (cheap, no copies)
+      Tensor t_out(out_ptr);
+      Tensor t_a(node_a);
+      Tensor t_b(node_b);
+      
       backward_op(t_out, t_a, t_b);
     };
   }
   
-  return Tensor(out_shape, out_node);
+  return Tensor(out_node);
 }
 
 // == UNARY OPERATORS ==

@@ -5,8 +5,12 @@
 #include <memory> // for std::shared_ptr
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace autograd {
+
+// Marking states for topological sort
+enum class Mark { None, Temp, Perm };
 
 // Forward declaration of the implementation struct
 struct ComputeNode;
@@ -14,7 +18,7 @@ struct ComputeNode;
 class Tensor {
  public:
   Tensor();
-  explicit Tensor(const std::vector<float>& data, std::vector<int> shape, bool requires_grad = false);
+  explicit Tensor(std::vector<float> data, std::vector<int> shape, bool requires_grad = false);
 
   // -- Accessors --
   const std::vector<float>& data() const;
@@ -46,7 +50,7 @@ class Tensor {
 
  private:
   // We need a private constructor that wraps an existing node
-  explicit Tensor(std::vector<int> shape, std::shared_ptr<ComputeNode> node);
+  explicit Tensor(std::shared_ptr<ComputeNode> node);
 
   using BinaryMathOp = std::function<std::vector<float>(const std::vector<float>&, const std::vector<float>&, const std::vector<int>&, const std::vector<int>&)>;
   using BinaryGradOp = std::function<void(Tensor& out, const Tensor& a, const Tensor& b)>;
@@ -64,8 +68,11 @@ class Tensor {
                              UnaryGradOp backward_op);
 
 
-  std::vector<int> shape_; // Design decision: shape is stored in Tensor, not in ComputeNode
   std::shared_ptr<ComputeNode> node_;
+
+  // Optimization: Don't allocate these on every backward call
+  mutable std::vector<ComputeNode*> topo_cache_;
+  mutable std::unordered_map<ComputeNode*, autograd::Mark> marks_cache_;
 };
 
 }  // namespace autograd
