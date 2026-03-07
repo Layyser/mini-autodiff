@@ -4,7 +4,7 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -Werror -I. -MMD -MP -O2
 # Base name of the program
 PROG_NAME = run
 
-SRCS = main.cc tensor.cc ops.cc
+SRCS = main.cc tensor.cc ops.cc optimizer.cc
 OBJS = $(SRCS:.cc=.o)
 DEPS = $(SRCS:.cc=.d)
 

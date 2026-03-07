@@ -489,7 +489,7 @@ Tensor operator/(const Tensor& a, const Tensor& b) {
 Tensor matmul(const Tensor& a, const Tensor& b) { // Specific case where we need shapes of the Tensors
   // 1. Compute Data and Shape
   std::vector<float> out_data = MatMulForward(a.data(), b.data(), a.shape(), b.shape());
-  std::vector<int> out_shape = ComputeBroadcastShape(a.shape(), b.shape());
+  std::vector<int> out_shape = {a.shape()[0], b.shape()[1]};
 
   bool req_grad = a.requires_grad() || b.requires_grad();
 
