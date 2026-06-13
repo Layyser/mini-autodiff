@@ -1,7 +1,7 @@
-#include "tensor.h"
-#include "compute_node.h"
-#include "memory_pool.h"
-#include "ops.h"
+#include "core/tensor.h"
+#include "core/compute_node.h"
+#include "core/memory_pool.h"
+#include "core/ops.h"
 #include <cassert>
 #include <cmath> // log
 #include <stdexcept>
@@ -286,7 +286,18 @@ void DivBackward(Tensor& out, const Tensor& a, const Tensor& b) {
 // A: shape [M, K]
 // B: shape [K, N]
 // Out: shape [M, N]
-std::vector<float> MatMulForward(const std::vector<float>& a, 
+
+// Validates that both shapes are 2D and that inner dimensions match
+void ValidateMatMulShapes(const std::vector<int>& shape_a, const std::vector<int>& shape_b) {
+  if (shape_a.size() != 2 || shape_b.size() != 2) {
+    throw std::invalid_argument("matmul: both tensors must be 2D");
+  }
+  if (shape_a[1] != shape_b[0]) {
+    throw std::invalid_argument("matmul: inner dimensions must match (A is [M,K], B must be [K,N])");
+  }
+}
+
+std::vector<float> MatMulForward(const std::vector<float>& a,
                                  const std::vector<float>& b,
                                  const std::vector<int>& shape_a,
                                  const std::vector<int>& shape_b) {
@@ -487,6 +498,8 @@ Tensor operator/(const Tensor& a, const Tensor& b) {
 }
 
 Tensor matmul(const Tensor& a, const Tensor& b) { // Specific case where we need shapes of the Tensors
+  ValidateMatMulShapes(a.shape(), b.shape());
+
   // 1. Compute Data and Shape
   std::vector<float> out_data = MatMulForward(a.data(), b.data(), a.shape(), b.shape());
   std::vector<int> out_shape = {a.shape()[0], b.shape()[1]};

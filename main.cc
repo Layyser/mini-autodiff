@@ -3,15 +3,15 @@
 using std::vector, std::cout;
 
 // Tensor class
-#include "tensor.h"
+#include "core/tensor.h"
 using autograd::Tensor;
 
 // Optimizers
-#include "optimizer.h"
+#include "nn/optimizer.h"
 using autograd::SGD, autograd::Adam;
 
 // Loss function
-#include "loss.h"
+#include "nn/loss.h"
 using autograd::MSELoss;
 
 

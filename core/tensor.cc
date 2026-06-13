@@ -1,7 +1,7 @@
-#include "tensor.h"
-#include "compute_node.h"
-#include "ops.h"
-#include "memory_pool.h"
+#include "core/tensor.h"
+#include "core/compute_node.h"
+#include "core/ops.h"
+#include "core/memory_pool.h"
 #include <algorithm>
 #include <cassert>
 #include <unordered_map>

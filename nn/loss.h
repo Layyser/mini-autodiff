@@ -1,7 +1,7 @@
 #ifndef AUTOGRAD_LOSS_H_
 #define AUTOGRAD_LOSS_H_
 
-#include "tensor.h"
+#include "core/tensor.h"
 #include <vector>
 
 namespace autograd {
