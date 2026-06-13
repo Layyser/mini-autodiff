@@ -118,7 +118,11 @@ Tensor Tensor::ApplyUnaryOp(const Tensor& a,
                             UnaryMathOp forward_op,
                             UnaryGradOp backward_op) {
   std::vector<float> out_data = forward_op(a.data());
-  std::vector<int> out_shape = a.shape();
+  // Elementwise ops preserve the input shape; reductions (e.g. sum, mean)
+  // collapse to a flat 1-element tensor.
+  std::vector<int> out_shape = (out_data.size() == a.data().size())
+                                    ? a.shape()
+                                    : std::vector<int>{static_cast<int>(out_data.size())};
 
   bool req_grad = a.requires_grad();
   
@@ -165,6 +169,9 @@ static void BuildTopo(ComputeNode* node, std::vector<ComputeNode*>& topo, std::u
 
 void Tensor::backward() {
   if (!node_->requires_grad) return;
+  if (size() != 1) {
+    throw std::runtime_error("backward() can only be called on a scalar (size 1) tensor");
+  }
   node_->EnsureGrad();
   std::fill(node_->grad.begin(), node_->grad.end(), 1.0f);
 

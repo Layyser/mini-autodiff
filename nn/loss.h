@@ -26,12 +26,17 @@ class MSELoss : public Loss {
 class BCELoss : public Loss {
  public:
   Tensor operator()(const Tensor& pred, const Tensor& target) override {
+    // Clamp away from 0/1: log(pred) and log(1-pred) would otherwise
+    // produce -inf/NaN when pred saturates (common with sigmoid + float32).
+    constexpr float kEps = 1e-7f;
+    Tensor clamped_pred = clamp(pred, kEps, 1.0f - kEps);
+
     Tensor one({1.0f}, {1}, false);
     Tensor neg_one({-1.0f}, {1}, false);
 
-    Tensor term1 = target * log(pred);
-    Tensor term2 = (one - target) * log(one - pred);
-    
+    Tensor term1 = target * log(clamped_pred);
+    Tensor term2 = (one - target) * log(one - clamped_pred);
+
     return mean(term1 + term2) * neg_one;
   }
 };

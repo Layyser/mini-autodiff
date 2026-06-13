@@ -2,6 +2,7 @@
 #include "core/compute_node.h"
 #include "core/memory_pool.h"
 #include "core/ops.h"
+#include <algorithm> // min, max
 #include <cassert>
 #include <cmath> // log
 #include <stdexcept>
@@ -434,6 +435,28 @@ void LogBackward(Tensor& out, const Tensor& a) {
   }
 }
 
+// --- CLAMP ---
+std::vector<float> ClampForward(const std::vector<float>& a, float min_val, float max_val) {
+  std::vector<float> out(a.size());
+  for (size_t i = 0; i < a.size(); ++i) {
+    out[i] = std::min(std::max(a[i], min_val), max_val);
+  }
+  return out;
+}
+
+void ClampBackward(Tensor& out, const Tensor& a, float min_val, float max_val) {
+  const auto& grad_out = out.grad();
+  if (a.requires_grad()) {
+    auto& ga = const_cast<Tensor&>(a).mutable_grad();
+    const auto& da = a.data();
+    for (size_t i = 0; i < ga.size(); ++i) {
+      // Gradient is 1 inside the clamp range, 0 outside (flat regions)
+      float derivative = (da[i] >= min_val && da[i] <= max_val) ? 1.0f : 0.0f;
+      ga[i] += grad_out[i] * derivative;
+    }
+  }
+}
+
 // --- SUM --- Authored by Sonnet-4.5
 std::vector<float> SumForward(const std::vector<float>& a) {
   float total = 0.0f;
@@ -560,6 +583,16 @@ Tensor sigmoid(const Tensor& a) {
 
 Tensor log(const Tensor& a) {
   return Tensor::ApplyUnaryOp(a, "Log", LogForward, LogBackward);
+}
+
+Tensor clamp(const Tensor& a, float min_val, float max_val) {
+  auto forward_op = [min_val, max_val](const std::vector<float>& x) {
+    return ClampForward(x, min_val, max_val);
+  };
+  auto backward_op = [min_val, max_val](Tensor& out, const Tensor& x) {
+    ClampBackward(out, x, min_val, max_val);
+  };
+  return Tensor::ApplyUnaryOp(a, "Clamp", forward_op, backward_op);
 }
 
 Tensor sum(const Tensor& a) {

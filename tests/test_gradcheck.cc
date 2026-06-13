@@ -8,6 +8,7 @@
 #include <cmath>
 #include <functional>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -184,6 +185,14 @@ void TestLog() {
             {Tensor({0.5f, 1.0f, 2.0f, 3.5f}, {2, 2}, true)});
 }
 
+void TestClamp() {
+  // Values kept away from the [-1, 1] boundaries so finite differences
+  // don't straddle the kink.
+  GradCheck("Clamp",
+            [](vector<Tensor>& xs) { return sum(clamp(xs[0], -1.0f, 1.0f)); },
+            {Tensor({-2.0f, -0.5f, 0.5f, 2.0f}, {2, 2}, true)});
+}
+
 void TestSum() {
   GradCheck("Sum", [](vector<Tensor>& xs) { return sum(xs[0]); },
             {Tensor({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2}, true)});
@@ -213,6 +222,47 @@ void TestBCELoss() {
              Tensor({1.0f, 0.0f, 1.0f, 0.0f}, {2, 2}, false)});
 }
 
+// Perfectly-confident (saturated) predictions used to produce NaN via
+// 0 * log(0) before BCELoss clamped its input.
+void TestBCELossStability() {
+  BCELoss criterion;
+  Tensor pred({0.0f, 1.0f, 0.0f, 1.0f}, {2, 2}, true);
+  Tensor target({0.0f, 1.0f, 0.0f, 1.0f}, {2, 2}, false);
+
+  Tensor loss = criterion(pred, target);
+  float value = loss.data()[0];
+
+  if (std::isnan(value) || std::isinf(value)) {
+    cerr << "[FAIL] BCELoss (stability): loss is " << value
+         << " for saturated predictions\n";
+    ++g_failures;
+    return;
+  }
+  cout << "[PASS] BCELoss (stability)\n";
+}
+
+// --- Engine API checks ---
+
+// backward() requires a scalar (size 1) output.
+void TestBackwardRequiresScalar() {
+  Tensor x({1.0f, 2.0f, 3.0f, 4.0f}, {2, 2}, true);
+  Tensor y = x + x;  // size 4, not a scalar
+
+  bool threw = false;
+  try {
+    y.backward();
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+
+  if (threw) {
+    cout << "[PASS] backward() rejects non-scalar output\n";
+  } else {
+    cerr << "[FAIL] backward() rejects non-scalar output: no exception thrown\n";
+    ++g_failures;
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -225,10 +275,13 @@ int main() {
   TestRelu();
   TestSigmoid();
   TestLog();
+  TestClamp();
   TestSum();
   TestMean();
   TestMSELoss();
   TestBCELoss();
+  TestBCELossStability();
+  TestBackwardRequiresScalar();
 
   if (g_failures > 0) {
     cerr << "\n" << g_failures << " test(s) failed.\n";

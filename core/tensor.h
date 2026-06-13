@@ -45,6 +45,7 @@ class Tensor {
   friend Tensor relu(const Tensor& a);
   friend Tensor sigmoid(const Tensor& a);
   friend Tensor log(const Tensor& a);
+  friend Tensor clamp(const Tensor& a, float min_val, float max_val);
   friend Tensor sum(const Tensor& a);
   friend Tensor mean(const Tensor& a);
 
