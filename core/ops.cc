@@ -229,10 +229,23 @@ void MulBackward(Tensor& out, const Tensor& a, const Tensor& b) {
 }
 
 // --- DIVISION ---
-std::vector<float> DivForward(const std::vector<float>& a, 
+
+// Throws if any element of the divisor is zero, instead of silently
+// producing inf/NaN that then propagates through forward and backward.
+void CheckNoZeroDivisor(const std::vector<float>& b) {
+  for (float val : b) {
+    if (val == 0.0f) {
+      throw std::invalid_argument("division by zero: divisor tensor contains a zero element");
+    }
+  }
+}
+
+std::vector<float> DivForward(const std::vector<float>& a,
                               const std::vector<float>& b,
                               const std::vector<int>& shape_a,
                               const std::vector<int>& shape_b) {
+  CheckNoZeroDivisor(b);
+
   std::vector<int> out_shape = ComputeBroadcastShape(shape_a, shape_b);
   size_t total_size = std::accumulate(out_shape.begin(), out_shape.end(), 1, std::multiplies<int>());
 

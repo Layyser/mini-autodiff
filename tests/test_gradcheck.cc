@@ -121,6 +121,22 @@ void TestDiv() {
             [](vector<Tensor>& xs) { return sum(xs[0] / xs[1]); },
             {Tensor({1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}, {2, 3}, true),
              Tensor({2.0f, -3.0f, 4.0f}, {1, 3}, true)});
+
+  // Division by zero must raise, not silently produce inf/NaN.
+  bool threw = false;
+  try {
+    Tensor a({1.0f, 2.0f}, {2});
+    Tensor b({1.0f, 0.0f}, {2});
+    [[maybe_unused]] Tensor c = a / b;
+  } catch (const std::invalid_argument&) {
+    threw = true;
+  }
+  if (threw) {
+    cout << "[PASS] Div (rejects zero divisor)\n";
+  } else {
+    cerr << "[FAIL] Div (rejects zero divisor): no exception thrown\n";
+    ++g_failures;
+  }
 }
 
 void TestMatMul() {
